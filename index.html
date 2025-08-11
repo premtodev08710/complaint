@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ระบบร้องเรียนมหาวิทยาลัย</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase (Compat SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+  <!-- Firebase Config -->
+  <script src="./firebase-config.js"></script>
+  <script>
+    // เปิด App Check อัตโนมัติถ้าตั้ง site key ไว้
+    if (window.APP_CHECK_SITE_KEY) {
+      if (!firebase.apps.length) firebase.initializeApp(window.firebaseConfig);
+      const provider = new firebase.appCheck.ReCaptchaV3Provider(window.APP_CHECK_SITE_KEY);
+      firebase.appCheck().activate(provider, true);
+    }
+  </script>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Sarabun', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    .animate-fade-in { animation: fadeIn 0.5s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-processing { background: #dbeafe; color: #1e40af; }
+    .status-resolved { background: #d1fae5; color: #065f46; }
+    .field-readonly { background: #f8fafc }
+  </style>
+</head>
+<body class="bg-gray-50">
+
+  <!-- Header -->
+  <header class="gradient-bg text-white shadow-lg">
+    <div class="container max-w-7xl mx-auto px-4 py-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+            <span class="text-2xl">🏛️</span>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold">ระบบร้องเรียนมหาวิทยาลัย</h1>
+            <p class="text-blue-100 text-sm">ช่องทางร้องเรียนตรงสู่ผู้บริหารระดับสูง</p>
+          </div>
+        </div>
+
+        <!-- Desktop nav -->
+        <nav class="hidden md:flex items-center space-x-6">
+          <button onclick="showSection('home')" class="nav-btn hover:text-blue-200 transition-colors">หน้าหลัก</button>
+          <button onclick="showSection('complaint')" class="nav-btn hover:text-blue-200 transition-colors">ยื่นร้องเรียน</button>
+          <button onclick="showSection('status')" class="nav-btn hover:text-blue-200 transition-colors">ตรวจสอบสถานะ</button>
+
+          <a id="profileLink" href="./profile.html" class="hidden hover:text-blue-200 transition-colors">โปรไฟล์</a>
+          <a id="adminLink" href="./admin.html" class="hidden hover:text-blue-200 transition-colors">Admin</a>
+
+          <span id="userBadge" class="hidden text-sm bg-white/20 px-3 py-1 rounded-full"></span>
+          <a id="loginLink" href="./auth.html" class="hover:text-blue-200 transition-colors">เข้าสู่ระบบ</a>
+          <button id="logoutBtn" class="hidden hover:text-blue-200 transition-colors" onclick="logout()">ออกจากระบบ</button>
+        </nav>
+
+        <!-- Mobile menu button -->
+        <button onclick="toggleMobileMenu()" class="md:hidden text-white" aria-label="เมนู">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Mobile Menu -->
+      <div id="mobileMenu" class="hidden md:hidden mt-4 space-y-2">
+        <button onclick="showSection('home')" class="block w-full text-left py-2 hover:text-blue-200">หน้าหลัก</button>
+        <button onclick="showSection('complaint')" class="block w-full text-left py-2 hover:text-blue-200">ยื่นร้องเรียน</button>
+        <button onclick="showSection('status')" class="block w-full text-left py-2 hover:text-blue-200">ตรวจสอบสถานะ</button>
+
+        <div class="pt-2 border-t border-white/30 mt-2">
+          <a id="profileLinkMobile" href="./profile.html" class="hidden block py-2 hover:text-blue-200">โปรไฟล์</a>
+          <a id="adminLinkMobile" href="./admin.html" class="hidden block py-2 hover:text-blue-200">Admin</a>
+          <span id="userBadgeMobile" class="hidden block text-sm bg-white/20 px-3 py-1 rounded-full mb-2"></span>
+          <a id="loginLinkMobile" href="./auth.html" class="block py-2 hover:text-blue-200">เข้าสู่ระบบ</a>
+          <button id="logoutBtnMobile" class="hidden py-2 hover:text-blue-200" onclick="logout()">ออกจากระบบ</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="container max-w-7xl mx-auto px-4 py-8">
+    <!-- Home Section -->
+    <section id="homeSection" class="animate-fade-in">
+      <div class="text-center mb-12">
+        <h2 class="text-4xl font-bold text-gray-800 mb-4">ยินดีต้อนรับสู่ระบบร้องเรียน</h2>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+          ช่องทางสำหรับนักศึกษา อาจารย์ และบุคลากรในการร้องเรียนปัญหาต่างๆ
+          โดยตรงสู่ผู้บริหารระดับสูง เช่น อธิการบดี และประธานกรรมการมหาวิทยาลัย
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-8 mb-12">
+        <div class="bg-white rounded-lg p-6 card-shadow text-center">
+          <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="text-3xl">📝</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-3">ยื่นร้องเรียน</h3>
+          <p class="text-gray-600 mb-4">ส่งเรื่องร้องเรียนของคุณได้อย่างง่ายดายและปลอดภัย</p>
+          <button onclick="showSection('complaint')" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+            เริ่มร้องเรียน
+          </button>
+        </div>
+
+        <div class="bg-white rounded-lg p-6 card-shadow text-center">
+          <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="text-3xl">🔍</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-3">ตรวจสอบสถานะ</h3>
+          <p class="text-gray-600 mb-4">ติดตามความคืบหน้าของเรื่องร้องเรียนของคุณ</p>
+          <button onclick="showSection('status')" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
+            ตรวจสอบ
+          </button>
+        </div>
+
+        <div class="bg-white rounded-lg p-6 card-shadow text-center">
+          <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="text-3xl">🛡️</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-3">ความเป็นส่วนตัว</h3>
+          <p class="text-gray-600 mb-4">ข้อมูลของคุณได้รับการปกป้องอย่างเข้มงวด</p>
+          <button class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors">
+            เรียนรู้เพิ่มเติม
+          </button>
+        </div>
+      </div>
+
+      <!-- Statistics (4 ช่อง) -->
+      <div class="bg-white rounded-lg p-8 card-shadow">
+        <h3 class="text-2xl font-bold text-center mb-8">สถิติการใช้งาน</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div>
+            <div class="text-4xl font-bold text-blue-600" id="totalComplaints">0</div>
+            <div class="text-gray-600">เรื่องร้องเรียนทั้งหมด</div>
+          </div>
+          <div>
+            <div class="text-4xl font-bold text-yellow-600" id="pendingComplaints">0</div>
+            <div class="text-gray-600">รอดำเนินการ</div>
+          </div>
+          <div>
+            <div class="text-4xl font-bold text-blue-600" id="processingComplaints">0</div>
+            <div class="text-gray-600">กำลังดำเนินการ</div>
+          </div>
+          <div>
+            <div class="text-4xl font-bold text-green-600" id="resolvedComplaints">0</div>
+            <div class="text-gray-600">ดำเนินการเสร็จสิ้น</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Complaint Form Section -->
+    <section id="complaintSection" class="hidden animate-fade-in">
+      <div class="max-w-4xl mx-auto">
+        <div id="mustLogin" class="hidden bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-lg p-4 mb-4">
+          โปรด <a href="./auth.html" class="underline">เข้าสู่ระบบ</a> ก่อนยื่นเรื่องร้องเรียน
+        </div>
+
+        <div id="mustSetupProfile" class="hidden bg-red-50 text-red-800 border border-red-200 rounded-lg p-4 mb-4">
+          โปรดตั้งค่าโปรไฟล์ก่อน (ชื่อ-นามสกุล / เบอร์โทร / คณะ/หน่วยงาน) ที่
+          <a href="./profile.html" class="underline">หน้าตั้งค่าโปรไฟล์</a>
+        </div>
+
+        <div id="complaintCard" class="bg-white rounded-lg p-8 card-shadow hidden">
+          <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">ยื่นเรื่องร้องเรียน</h2>
+
+          <form id="complaintForm" class="space-y-6">
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อ-นามสกุล (อัตโนมัติ)</label>
+                <input type="text" id="fullName" class="w-full px-4 py-3 border border-gray-300 rounded-lg field-readonly" readonly>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">สถานะ *</label>
+                <select id="userType" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="">เลือกสถานะ</option>
+                  <option value="student">นักศึกษา</option>
+                  <option value="faculty">อาจารย์</option>
+                  <option value="staff">บุคลากร</option>
+                  <option value="dean">คณบดี</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">อีเมล (จากบัญชี)</label>
+                <input type="email" id="email" class="w-full px-4 py-3 border border-gray-300 rounded-lg field-readonly" readonly>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">เบอร์โทรศัพท์ (อัตโนมัติ)</label>
+                <input type="tel" id="phone" class="w-full px-4 py-3 border border-gray-300 rounded-lg field-readonly" readonly>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">คณะ/หน่วยงาน (อัตโนมัติ)</label>
+              <input type="text" id="department" class="w-full px-4 py-3 border border-gray-300 rounded-lg field-readonly" readonly>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">ประเภทเรื่องร้องเรียน *</label>
+              <select id="complaintType" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="">เลือกประเภท</option>
+                <option value="academic">เรื่องวิชาการ</option>
+                <option value="administration">เรื่องการบริหาร</option>
+                <option value="facility">เรื่องสิ่งอำนวยความสะดวก</option>
+                <option value="personnel">เรื่องบุคลากร</option>
+                <option value="student-affairs">เรื่องกิจการนักศึกษา</option>
+                <option value="other">อื่นๆ</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">ผู้ที่ต้องการร้องเรียน *</label>
+              <select id="targetLevel" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option value="">เลือกผู้รับเรื่อง</option>
+                <option value="rector">อธิการบดี</option>
+                <option value="board-chairman">ประธานกรรมการมหาวิทยาลัย</option>
+                <option value="vice-rector">รองอธิการบดี</option>
+                <option value="university-council">สภามหาวิทยาลัย</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">หัวข้อเรื่องร้องเรียน *</label>
+              <input type="text" id="subject" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">รายละเอียดเรื่องร้องเรียน *</label>
+              <textarea id="description" required rows="6" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">แนวทางแก้ไขที่เสนอ</label>
+              <textarea id="solution" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+            </div>
+
+            <div class="flex items-center">
+              <input type="checkbox" id="anonymous" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+              <label for="anonymous" class="ml-2 block text-sm text-gray-700">
+                ยื่นเรื่องแบบไม่เปิดเผยชื่อ (Anonymous)
+              </label>
+            </div>
+
+            <div class="flex items-center">
+              <input type="checkbox" id="terms" required class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+              <label for="terms" class="ml-2 block text-sm text-gray-700">
+                ฉันยืนยันว่าข้อมูลที่ให้ไว้เป็นความจริง และยินยอมให้มหาวิทยาลัยใช้ข้อมูลเพื่อการดำเนินการ *
+              </label>
+            </div>
+
+            <div class="text-center">
+              <button type="submit" class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg">
+                ส่งเรื่องร้องเรียน
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Status Check Section (ของฉันเท่านั้น) -->
+    <section id="statusSection" class="hidden animate-fade-in">
+      <div class="max-w-4xl mx-auto">
+
+        <!-- แจ้งเตือนถ้ายังไม่ล็อกอิน -->
+        <div id="mustLoginStatus" class="hidden bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-lg p-4 mb-6">
+          โปรด <a href="./auth.html" class="underline">เข้าสู่ระบบ</a> เพื่อดูสถานะคำร้องของคุณ
+        </div>
+
+        <div class="bg-white rounded-lg p-8 card-shadow mb-8">
+          <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">ตรวจสอบสถานะเรื่องร้องเรียน</h2>
+          <div class="max-w-md mx-auto">
+            <div class="flex">
+              <input type="text" id="trackingId" placeholder="กรอกหมายเลขติดตาม (เฉพาะของคุณ)"
+                     class="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <button onclick="checkStatus()" class="bg-blue-600 text-white px-6 py-3 rounded-r-lg hover:bg-blue-700 transition-colors">
+                ตรวจสอบ
+              </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">* ต้องล็อกอิน และจะแสดงเฉพาะคำร้องของบัญชีคุณเท่านั้น</p>
+          </div>
+        </div>
+
+        <!-- Status Result -->
+        <div id="statusResult" class="hidden bg-white rounded-lg p-8 card-shadow">
+          <div id="statusContent"></div>
+        </div>
+
+        <!-- My Recent Complaints -->
+        <div class="bg-white rounded-lg p-8 card-shadow">
+          <h3 class="text-2xl font-bold text-gray-800 mb-6">เรื่องร้องเรียนของฉันล่าสุด</h3>
+          <div id="recentComplaints" class="space-y-4"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Success Modal -->
+  <div id="successModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-8 max-w-md mx-4 text-center">
+      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <span class="text-3xl">✅</span>
+      </div>
+      <h3 class="text-xl font-bold text-gray-800 mb-4">ส่งเรื่องร้องเรียนสำเร็จ!</h3>
+      <p class="text-gray-600 mb-4">หมายเลขติดตาม: <span id="trackingNumber" class="font-bold text-blue-600"></span></p>
+      <p class="text-sm text-gray-500 mb-6">กรุณาเก็บหมายเลขนี้ไว้เพื่อติดตามสถานะ</p>
+      <button onclick="closeModal()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        ปิด
+      </button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-gray-800 text-white py-8 mt-16">
+    <div class="container mx-auto px-4 text-center">
+      <p>&copy; 2024 ระบบร้องเรียนมหาวิทยาลัย. สงวนลิขสิทธิ์.</p>
+      <p class="text-gray-400 text-sm mt-2">ระบบนี้เป็น Demo เพื่อการศึกษาเท่านั้น</p>
+    </div>
+  </footer>
+
+  <!-- App Logic -->
+  <script src="./script.js"></script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>จัดการสมาชิก – Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+  <script src="./firebase-config.js"></script>
+  <script>
+    if (window.APP_CHECK_SITE_KEY) {
+      if (!firebase.apps.length) firebase.initializeApp(window.firebaseConfig);
+      const provider = new firebase.appCheck.ReCaptchaV3Provider(window.APP_CHECK_SITE_KEY);
+      firebase.appCheck().activate(provider, true);
+    }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:'Sarabun',sans-serif;}
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="gradient-bg text-white shadow-lg">
+    <div class="container mx-auto px-4 py-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+            <span class="text-2xl">👥</span>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold">จัดการสมาชิก</h1>
+            <p class="text-blue-100 text-sm">สำหรับผู้ดูแลระบบ (Admin)</p>
+          </div>
+        </div>
+        <div class="hidden md:flex items-center gap-4">
+          <a href="./admin.html" class="hover:text-blue-200 transition-colors">กลับหน้า Admin</a>
+          <a href="./index.html" class="hover:text-blue-200 transition-colors">หน้าแรก</a>
+          <span id="adminBadge" class="hidden text-sm bg-white/20 px-3 py-1 rounded-full"></span>
+          <button onclick="logout()" class="hover:text-blue-200">ออกจากระบบ</button>
+        </div>
+        <button onclick="document.getElementById('mobileMenu').classList.toggle('hidden')" class="md:hidden text-white" aria-label="เมนู">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Mobile Menu -->
+      <div id="mobileMenu" class="hidden md:hidden mt-4 space-y-2">
+        <a href="./admin.html" class="block w-full text-left py-2 hover:text-blue-200">กลับหน้า Admin</a>
+        <a href="./index.html" class="block w-full text-left py-2 hover:text-blue-200">หน้าแรก</a>
+        <span id="adminBadgeMobile" class="hidden block text-sm bg-white/20 px-3 py-1 rounded-full"></span>
+        <button onclick="logout()" class="block w-full text-left py-2 hover:text-blue-200">ออกจากระบบ</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-6">
+    <!-- Guard -->
+    <div id="guard" class="hidden bg-red-50 text-red-800 border border-red-200 rounded-lg p-4 mb-6">
+      บัญชีนี้ไม่มีสิทธิ์เข้าถึงหน้า “จัดการสมาชิก” (ต้องเป็นบทบาท <b>ผู้ดูแลระบบ</b>)
+    </div>
+
+    <!-- Filter Card -->
+    <section class="bg-white rounded-xl p-5 card-shadow mb-6">
+      <div class="grid md:grid-cols-12 gap-4 items-end">
+        <div class="md:col-span-5">
+          <label class="block text-sm mb-1 text-gray-700">ค้นหาอีเมล</label>
+          <div class="relative">
+            <input id="qEmail" type="text" placeholder="เช่น student@uni.ac.th"
+                   class="w-full border border-gray-300 rounded-lg pl-10 pr-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="11" cy="11" r="8" stroke-width="2"></circle>
+              <path d="M21 21l-4.3-4.3" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div class="md:col-span-3">
+          <label class="block text-sm mb-1 text-gray-700">กรองบทบาท</label>
+          <select id="fRole" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <option value="">ทั้งหมด</option>
+            <option value="user">ผู้ใช้ทั่วไป</option>
+            <option value="rector">อธิการบดี</option>
+            <option value="board-chairman">ประธานกรรมการมหาวิทยาลัย</option>
+            <option value="vice-rector">รองอธิการบดี</option>
+            <option value="university-council">สภามหาวิทยาลัย</option>
+            <option value="admin">ผู้ดูแลระบบ</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-sm mb-1 text-gray-700">ต่อหน้า</label>
+          <select id="pageSize" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <option>25</option>
+            <option selected>50</option>
+            <option>100</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2 flex gap-2">
+          <button id="btnSearch" class="flex-1 bg-slate-900 text-white rounded-lg px-4 py-2 hover:opacity-90">ค้นหา/รีเฟรช</button>
+          <button id="btnReset" class="px-4 py-2 rounded-lg border">ล้าง</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Table Card -->
+    <section class="bg-white rounded-xl card-shadow overflow-hidden">
+      <div class="px-5 py-4 border-b bg-slate-50">
+        <h2 class="text-lg font-semibold text-slate-800">รายชื่อสมาชิก</h2>
+        <p class="text-sm text-slate-500">จัดการข้อมูลโปรไฟล์และบทบาทของผู้ใช้</p>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full">
+          <thead class="bg-slate-100 text-slate-700 text-left">
+            <tr>
+              <th class="px-5 py-3 text-sm font-medium">ผู้ใช้</th>
+              <th class="px-5 py-3 text-sm font-medium">ชื่อ-นามสกุล</th>
+              <th class="px-5 py-3 text-sm font-medium">เบอร์โทร</th>
+              <th class="px-5 py-3 text-sm font-medium">คณะ/หน่วยงาน</th>
+              <th class="px-5 py-3 text-sm font-medium">บทบาท</th>
+              <th class="px-5 py-3 text-sm font-medium">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="rows" class="divide-y"></tbody>
+        </table>
+      </div>
+
+      <div class="px-5 py-4 flex items-center gap-3 border-t bg-white">
+        <div class="inline-flex rounded-lg overflow-hidden border">
+          <button id="prevBtn" class="px-4 py-2 bg-white hover:bg-slate-50 disabled:opacity-50" disabled>ก่อนหน้า</button>
+          <button id="nextBtn" class="px-4 py-2 bg-white hover:bg-slate-50 disabled:opacity-50" disabled>ถัดไป</button>
+        </div>
+        <span id="hint" class="text-sm text-slate-600"></span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast -->
+  <div id="toastWrap" class="fixed top-5 right-5 space-y-2 z-50"></div>
+
+  <script src="./roles.js"></script>
+</body>
+</html>
