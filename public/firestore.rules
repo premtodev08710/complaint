@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===================== Users (โปรไฟล์) =====================
+    match /users/{userId} {
+      // เช็กว่า auth คนที่ยิง rule นี้ เป็น admin ไหม
+      function isAdmin() {
+        return request.auth != null
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+
+      // อ่าน:
+      // - admin อ่าน/ลิสต์ ได้ทั้งคอลเลกชัน
+      // - ผู้ใช้ทั่วไปอ่านได้เฉพาะ doc ของตัวเอง
+      allow read: if request.auth != null
+                  && ( isAdmin() || request.auth.uid == userId );
+
+      // สร้างโปรไฟล์ตัวเองเท่านั้น และบังคับ role เริ่มต้นเป็น "user" (หรือไม่ส่งมาก็ได้)
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && ( !('role' in request.resource.data)
+                         || request.resource.data.role == 'user' );
+
+      // อัปเดต:
+      // - เจ้าของ doc อัปเดตได้ แต่ "ห้าม" เปลี่ยน role
+      // - admin อัปเดต/เปลี่ยน role ใครก็ได้
+      allow update: if request.auth != null && (
+                      ( request.auth.uid == userId
+                        && ( !('role' in request.resource.data)
+                             || request.resource.data.role == resource.data.role ) )
+                      || isAdmin()
+                    );
+
+      // ไม่ให้ลบจากฝั่ง client
+      allow delete: if false;
+    }
+
+    // ===================== Complaints (คำร้อง) =====================
+    match /complaints/{docId} {
+      // ดึงบทบาทของผู้ยิงคำขอ
+      function myRole() {
+        return request.auth != null
+          ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+          : null;
+      }
+      function isPriv() {
+        return myRole() in ['admin','rector','board-chairman','vice-rector','university-council'];
+      }
+
+      // ต้องล็อกอินก่อนถึงจะ "สร้าง" คำร้องได้
+      allow create: if request.auth != null;
+
+      // อ่านสาธารณะ (UI ฝั่ง client ซ่อนชื่อผู้ร้องแล้ว)
+      allow read: if true;
+
+      // อัปเดตสถานะ:
+      // - admin อัปเดตได้ทุกเรื่อง
+      // - บทบาทเฉพาะ (rector/board-chairman/vice-rector/university-council)
+      //   อัปเดตได้เฉพาะเรื่องที่ targetLevel เท่ากับบทบาทตนเอง
+      allow update: if request.auth != null
+                    && isPriv()
+                    && ( myRole() == 'admin'
+                         || resource.data.targetLevel == myRole() );
+
+      // ไม่ให้ลบจากฝั่ง client
+      allow delete: if false;
+    }
+  }
+}
