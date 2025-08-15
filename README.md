@@ -57,27 +57,7 @@
 ---
 
 ### 4. ดาวน์โหลดซอร์สโค้ด
-จัดโครงสร้างไฟล์ดังนี้
-
 ```
-complaint-system/
-│
-├── public/
-│   ├── index.html
-│   ├── admin.html
-│   ├── auth.html
-│   ├── profile.html
-│   ├── roles.html
-│   ├── firebase-config.js
-│   ├── script.js
-│   ├── admin.js
-│   ├── auth.js
-│   ├── profile.js
-│   ├── roles.js
-│
-└── firebase.json
-```
-
 > วางไฟล์ HTML และ JS ทั้งหมดในโฟลเดอร์ `public/`  
 
 ---
